@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: multicurrency-wallet
+
+wallet:
+  cnb:
+    base-url: https://api.cnb.cz
+    connect-timeout: 2s
+    read-timeout: 3s
+    # how often the background refresh checks whether a newer fixing can exist (and then calls CNB)
+    refresh-interval: 10m

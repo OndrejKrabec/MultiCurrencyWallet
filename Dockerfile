@@ -3,6 +3,8 @@
 
 # Build stage: only packages; tests run with ./mvnw verify.
 FROM eclipse-temurin:25-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507 AS build
+# The Maven wrapper needs unzip to install the .zip distribution its checksum is pinned for.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./

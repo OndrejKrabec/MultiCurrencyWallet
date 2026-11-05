@@ -9,6 +9,9 @@ wallet:
     read-timeout: 3s
     # how often the background refresh checks whether a newer fixing can exist (and then calls CNB)
     refresh-interval: 10m
+  api-docs:
+    server-url: http://localhost:8080
+    server-description: Local (./mvnw spring-boot:run or Docker)
 
 management:
   endpoint:

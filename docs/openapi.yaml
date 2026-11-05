@@ -1,0 +1,298 @@
+openapi: 3.1.0
+info:
+  title: Multicurrency Wallet API
+  description: "A single in-memory wallet holding money in many currencies, valued\
+    \ with Czech National Bank (CNB) exchange rates. Amounts are decimal strings with\
+    \ the currency's minor units. Errors are RFC 9457 Problem Details (application/problem+json)."
+  version: "1.0"
+servers:
+- url: http://localhost:8080
+  description: Local (./mvnw spring-boot:run or Docker)
+tags:
+- name: Exchange rates
+  description: The Czech National Bank exchange rates in use
+- name: Wallet
+  description: "Deposits, withdrawals and balances of the single wallet, and its total\
+    \ in any currency"
+paths:
+  /wallet/withdrawals:
+    post:
+      tags:
+      - Wallet
+      summary: Withdraws money.
+      description: "Subtracts the amount from the balance of its currency, atomically:\
+        \ either all of it or nothing. Never needs CNB, so any currency held can always\
+        \ be withdrawn. Returns all balances after the withdrawal."
+      operationId: withdraw
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FundsRequest"
+        required: true
+      responses:
+        "200":
+          description: Withdrawn; all balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancesResponse"
+        "400":
+          description: Invalid input; `errors` lists each invalid field (absent for
+            malformed JSON)
+          content:
+            application/problem+json: {}
+        "409":
+          description: Amount exceeds the balance of that currency (0 if not held)
+          content:
+            application/problem+json: {}
+        "422":
+          description: "A pseudo-currency such as XDR, which a wallet can't hold"
+          content:
+            application/problem+json: {}
+        "500":
+          description: Unexpected error; details are only logged
+          content:
+            application/problem+json: {}
+  /wallet/deposits:
+    post:
+      tags:
+      - Wallet
+      summary: Deposits money.
+      description: Adds the amount to the balance of its currency. Accepts the base
+        currency of the rates (CZK) and every currency quoted against it. Returns
+        all balances after the deposit.
+      operationId: deposit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FundsRequest"
+        required: true
+      responses:
+        "200":
+          description: Deposited; all balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancesResponse"
+        "400":
+          description: Invalid input; `errors` lists each invalid field (absent for
+            malformed JSON)
+          content:
+            application/problem+json: {}
+        "422":
+          description: "A currency CNB doesn't quote, or a pseudo-currency such as\
+            \ XDR"
+          content:
+            application/problem+json: {}
+        "503":
+          description: No valid exchange rates have been loaded yet
+          content:
+            application/problem+json: {}
+        "500":
+          description: Unexpected error; details are only logged
+          content:
+            application/problem+json: {}
+  /wallet:
+    get:
+      tags:
+      - Wallet
+      summary: Returns the balances.
+      description: "Every currency ever deposited, sorted by currency code; a fully\
+        \ withdrawn one shows zero."
+      operationId: balances
+      responses:
+        "200":
+          description: All balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancesResponse"
+        "500":
+          description: Unexpected error; details are only logged
+          content:
+            application/problem+json: {}
+  /wallet/total:
+    get:
+      tags:
+      - Wallet
+      summary: Returns the total of all balances in one currency.
+      description: "Converts every balance through the base currency (CZK) with the\
+        \ latest CNB fixing, sums the exact amounts and rounds once, down to the currency's\
+        \ minor units. The response says which fixing was used."
+      operationId: total
+      parameters:
+      - name: currency
+        in: query
+        description: "Target currency: CZK or any currency quoted by CNB (ISO 4217,\
+          \ upper case)"
+        required: true
+        schema:
+          type: string
+        example: EUR
+      responses:
+        "200":
+          description: The total and the CNB fixing it was calculated with
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTotalResponse"
+        "400":
+          description: Missing or invalid `currency`
+          content:
+            application/problem+json: {}
+        "422":
+          description: "The target or a held currency is not quoted by CNB, or is\
+            \ a pseudo-currency such as XDR"
+          content:
+            application/problem+json: {}
+        "503":
+          description: No valid CNB rates have been loaded yet
+          content:
+            application/problem+json: {}
+        "500":
+          description: Unexpected error; details are only logged
+          content:
+            application/problem+json: {}
+  /exchange-rates:
+    get:
+      tags:
+      - Exchange rates
+      summary: Returns the CNB rates in use.
+      description: The latest CNB fixing loaded (CNB publishes one per working day
+        at about 14:30 Prague time). Also the list of supported currencies (plus CZK).
+      operationId: exchangeRates
+      responses:
+        "200":
+          description: The fixing in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRatesResponse"
+        "503":
+          description: No valid CNB rates have been loaded yet
+          content:
+            application/problem+json: {}
+        "500":
+          description: Unexpected error; details are only logged
+          content:
+            application/problem+json: {}
+components:
+  schemas:
+    FundsRequest:
+      type: object
+      description: An amount of money in one currency
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 currency code in upper case
+          example: USD
+        amount:
+          type: string
+          format: decimal
+          description: "Positive amount, preferably sent as a string (a JSON number\
+            \ is accepted too); at most the currency's ISO 4217 decimal places (2\
+            \ for USD, 0 for JPY)"
+          example: "10.50"
+      required:
+      - amount
+      - currency
+    Balance:
+      type: object
+      description: The balance of one currency
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: USD
+        amount:
+          type: string
+          format: decimal
+          description: Amount with exactly the currency's minor units
+          example: "7.00"
+      required:
+      - amount
+      - currency
+    BalancesResponse:
+      type: object
+      description: All balances of the wallet
+      properties:
+        balances:
+          type: array
+          description: "Every currency ever deposited, sorted by currency code; a\
+            \ fully withdrawn one shows zero; empty for a new wallet"
+          items:
+            $ref: "#/components/schemas/Balance"
+      required:
+      - balances
+    WalletTotalResponse:
+      type: object
+      description: The total of all balances in one currency
+      properties:
+        currency:
+          type: string
+          description: Target currency
+          example: EUR
+        amount:
+          type: string
+          format: decimal
+          description: "All balances converted to the currency and summed, then rounded\
+            \ once, down, to its minor units"
+          example: "11.25"
+        ratesValidFor:
+          type: string
+          format: date
+          description: "Date of the CNB fixing used; earlier than today on weekends,\
+            \ holidays and before ~14:30 Prague time"
+          example: 2026-11-03
+      required:
+      - amount
+      - currency
+      - ratesValidFor
+    ExchangeRate:
+      type: object
+      description: "One CNB quote: `units` of the currency are worth `rate` in the\
+        \ base currency"
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: JPY
+        units:
+          type: integer
+          format: int32
+          description: "Number of units the rate is quoted for (1, 100 or 1000)"
+          example: 100
+        rate:
+          type: string
+          format: decimal
+          description: Value of `units` of the currency in the base currency
+          example: "13.755"
+      required:
+      - currency
+      - rate
+      - units
+    ExchangeRatesResponse:
+      type: object
+      description: The CNB fixing in use
+      properties:
+        ratesValidFor:
+          type: string
+          format: date
+          description: Date of the CNB fixing
+          example: 2026-11-03
+        baseCurrency:
+          type: string
+          description: Base currency of all rates
+          example: CZK
+        rates:
+          type: array
+          description: Quotes sorted by currency code; the base itself is implicit
+            (rate 1)
+          items:
+            $ref: "#/components/schemas/ExchangeRate"
+      required:
+      - baseCurrency
+      - rates
+      - ratesValidFor

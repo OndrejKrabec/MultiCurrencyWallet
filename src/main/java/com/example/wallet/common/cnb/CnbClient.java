@@ -6,6 +6,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -27,10 +28,18 @@ public class CnbClient {
     }
 
     /**
-     * The fixing valid for {@code date}.
+     * The fixing valid for {@code date}. A failed call is retried a few times with a growing pause
+     * (by default 2, 4, 8 and 16 s), so a short outage, e.g. at startup, doesn't leave the app
+     * without rates until the next scheduled refresh.
      *
-     * @throws RestClientException if CNB cannot be reached or answers with an error
+     * @throws RestClientException if CNB cannot be reached or answers with an error, also after the
+     *     retries
      */
+    @Retryable(
+            includes = RestClientException.class,
+            maxRetries = 4,
+            delayString = "${wallet.cnb.retry-delay}",
+            multiplier = 2)
     public CnbDailyRatesDto fetchDailyRates(LocalDate date) {
         log.debug("Requesting the CNB fixing for {}", date);
         return Objects.requireNonNull(

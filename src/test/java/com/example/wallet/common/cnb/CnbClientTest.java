@@ -101,6 +101,7 @@ class CnbClientTest {
                         baseUrl,
                         Duration.ofSeconds(1),
                         Duration.ofSeconds(1),
+                        Duration.ZERO,
                         Duration.ofMinutes(10));
         return new CnbClient(new CnbClientConfig().cnbRestClient(RestClient.builder(), properties));
     }

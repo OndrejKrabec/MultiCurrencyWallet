@@ -5,13 +5,15 @@ import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.boot.http.client.HttpRedirects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.resilience.annotation.EnableResilientMethods;
 import org.springframework.web.client.RestClient;
 
 /**
  * The HTTP client for the CNB API: base URL and timeouts from {@link CnbProperties}, redirects not
- * followed.
+ * followed. {@code @EnableResilientMethods} activates the {@code @Retryable} on {@code CnbClient}.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableResilientMethods
 public class CnbClientConfig {
 
     public static final String CNB_REST_CLIENT = "cnbRestClient";

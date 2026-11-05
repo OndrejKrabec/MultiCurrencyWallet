@@ -3,6 +3,7 @@ package com.example.wallet;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
@@ -10,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.wallet.common.cnb.CnbRefresh;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.jayway.jsonpath.JsonPath;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -103,6 +105,27 @@ class WalletEndToEndTest {
         assertThat(inUsd.string("$.amount")).isEqualTo("12.59");
         assertThat(inUsd.string("$.ratesValidFor")).isEqualTo("2026-11-03");
         assertThat(httpGet("/wallet/total?currency=EUR").string("$.amount")).isEqualTo("11.25");
+    }
+
+    @Test
+    void failedCnbCallIsRetriedWithinTheSameRefresh() {
+        cnb.stubFor(
+                get(urlPathEqualTo("/cnbapi/exrates/daily"))
+                        .inScenario("blip")
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(aResponse().withStatus(503))
+                        .willSetStateTo("back"));
+        cnb.stubFor(
+                get(urlPathEqualTo("/cnbapi/exrates/daily"))
+                        .inScenario("blip")
+                        .whenScenarioStateIs("back")
+                        .willReturn(okJson(fixture("daily-2026-11-03.json"))));
+
+        refreshRates();
+
+        cnb.verify(2, getRequestedFor(urlPathEqualTo("/cnbapi/exrates/daily")));
+        assertThat(httpGet("/wallet/total?currency=USD").status()).isEqualTo(200);
+        assertThat(httpGet("/actuator/health").string("$.components.cnb.status")).isEqualTo("UP");
     }
 
     @Test

@@ -7,6 +7,8 @@ wallet:
     base-url: https://api.cnb.cz
     connect-timeout: 2s
     read-timeout: 3s
+    # a failed call is retried 4 times, after 2, 4, 8 and 16 s
+    retry-delay: 2s
     # how often the background refresh checks whether a newer fixing can exist (and then calls CNB)
     refresh-interval: 10m
   api-docs:

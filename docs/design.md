@@ -136,7 +136,7 @@ weekends and holidays). For a day without its own fixing, its API answers with t
 
 - **`CnbClient`** calls `GET https://api.cnb.cz/cnbapi/exrates/daily?date=YYYY-MM-DD&lang=EN` through a
   dedicated `RestClient`: JDK HTTP client, connect timeout 2 s, read timeout 3 s, redirects not
-  followed. CNB normally answers in about 50 ms; without timeouts, a hung connection would block the
+  followed, failed calls retried. CNB normally answers in about 50 ms; without timeouts, a hung connection would block the
   refresh forever.
 - **`CnbMapper`** turns the response into an `FxRateTable` with base CZK, the only place that knows the
   base. CNB is a trusted source, so its data is mapped as is.
@@ -156,7 +156,9 @@ So there are no calls at night, in the morning or on weekends: about one to thre
 public holiday CNB keeps returning the previous fixing, which costs one cheap call per interval that
 afternoon; a holiday calendar isn't worth a dependency.
 
-- A failed refresh keeps the previous fixing and logs one warning.
+- A failed CNB call is retried within the same refresh, four times after 2, 4, 8 and 16 s
+  (Spring's `@Retryable`), so a short outage at startup costs seconds, not a whole interval.
+- A refresh that still fails keeps the previous fixing and logs one warning.
 - Without any rates, rate-dependent requests return 503.
 - The state is two `volatile` fields written only by the scheduler thread, so no locks are needed.
 - "Today" is the Prague date from an injected `Clock`, so tests can control time.

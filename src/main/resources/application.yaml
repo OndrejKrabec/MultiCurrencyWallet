@@ -9,3 +9,9 @@ wallet:
     read-timeout: 3s
     # how often the background refresh checks whether a newer fixing can exist (and then calls CNB)
     refresh-interval: 10m
+
+management:
+  endpoint:
+    health:
+      # the cnb component shows the fixing date and whether the last refresh failed
+      show-details: always

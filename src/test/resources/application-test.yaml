@@ -1,0 +1,10 @@
+# Test suite (@ActiveProfiles("test")): no test may ever call the real CNB.
+# Tests that need CNB point wallet.cnb.base-url at WireMock themselves.
+wallet:
+  # tests call the refresh themselves, so a background run can't race them
+  scheduling:
+    enabled: false
+  cnb:
+    base-url: http://localhost:1
+    connect-timeout: 200ms
+    read-timeout: 300ms

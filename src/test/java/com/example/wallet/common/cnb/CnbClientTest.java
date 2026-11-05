@@ -80,7 +80,7 @@ class CnbClientTest {
 
     @Test
     void slowResponseTimesOut() {
-        stubDaily(TUE, okJson(CnbFixtures.read(CnbFixtures.TUESDAY)).withFixedDelay(1_000));
+        stubDaily(TUE, okJson(CnbFixtures.read(CnbFixtures.TUESDAY)).withFixedDelay(2_000));
 
         assertThatThrownBy(() -> client.fetchDailyRates(TUE))
                 .isInstanceOf(RestClientException.class);
@@ -99,8 +99,8 @@ class CnbClientTest {
         var properties =
                 new CnbProperties(
                         baseUrl,
-                        Duration.ofMillis(500),
-                        Duration.ofMillis(300),
+                        Duration.ofSeconds(1),
+                        Duration.ofSeconds(1),
                         Duration.ofMinutes(10));
         return new CnbClient(new CnbClientConfig().cnbRestClient(RestClient.builder(), properties));
     }

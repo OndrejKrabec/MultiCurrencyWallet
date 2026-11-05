@@ -1,7 +1,6 @@
 package com.example.wallet.domain.wallet;
 
 import com.example.wallet.common.exception.InvalidAmountException;
-import com.example.wallet.common.exception.UnsupportedCurrencyException;
 import com.example.wallet.common.money.Funds;
 import com.example.wallet.domain.fxrate.FxRateProvider;
 import java.math.BigDecimal;
@@ -35,9 +34,7 @@ public class WalletService {
 
     public Map<Currency, BigDecimal> deposit(Funds funds) {
         validatePositive(funds);
-        if (!rates.getCurrentRates().hasRate(funds.currency())) {
-            throw new UnsupportedCurrencyException(funds.currency().getCurrencyCode());
-        }
+        rates.getCurrentRates().validateSupported(funds.currency());
         wallet.deposit(funds);
         return wallet.balances();
     }

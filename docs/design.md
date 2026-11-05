@@ -120,7 +120,7 @@ its own errors. Each status means one thing, so a client branches on the status 
 | 404 / 405 / 406 / 415 | Unknown path, wrong method, wrong media type | Spring |
 | 409 | Withdrawal larger than the balance of that currency | `InsufficientFundsException` |
 | 422 | A real currency we can't value: not quoted by CNB, or a pseudo-currency | `UnsupportedCurrencyException` |
-| 503 | A conversion is needed but no rates have been loaded yet | `RatesUnavailableException` |
+| 503 | A deposit, a total or `/exchange-rates` needs rates, but none have been loaded yet | `RatesUnavailableException` |
 | 500 | Anything else: logged, the body says only "Unexpected error" | catch-all |
 
 `ApiExceptionHandler` extends Spring's `ResponseEntityExceptionHandler`, so Spring MVC's own errors keep
@@ -156,8 +156,9 @@ So there are no calls at night, in the morning or on weekends: about one to thre
 public holiday CNB keeps returning the previous fixing, which costs one cheap call per interval that
 afternoon; a holiday calendar isn't worth a dependency.
 
-- A failed CNB call is retried within the same refresh, four times after 2, 4, 8 and 16 s
-  (Spring's `@Retryable`), so a short outage at startup costs seconds, not a whole interval.
+- A CNB call that fails on the network or with a 5xx is retried within the same refresh, four times
+  after 2, 4, 8 and 16 s (Spring's `@Retryable`), so a short outage at startup costs seconds, not a
+  whole interval.
 - A refresh that still fails keeps the previous fixing and logs one warning.
 - Without any rates, rate-dependent requests return 503.
 - The state is two `volatile` fields written only by the scheduler thread, so no locks are needed.

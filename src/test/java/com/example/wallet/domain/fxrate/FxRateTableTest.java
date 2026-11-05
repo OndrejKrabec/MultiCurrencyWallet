@@ -68,8 +68,8 @@ class FxRateTableTest {
                         LocalDate.of(2026, 11, 3),
                         Map.of(USD, rate(USD, 1, "0.9"), JPY, rate(JPY, 100, "0.6")));
 
-        assertThat(eurBased.hasRate(EUR)).isTrue();
-        assertThat(eurBased.hasRate(CZK)).isFalse();
+        assertThat(eurBased.findRate(EUR)).isPresent();
+        assertThat(eurBased.findRate(CZK)).isEmpty();
         assertThat(eurBased.convert(amount("10"), USD, EUR)).isEqualByComparingTo("9");
         assertThat(eurBased.convert(amount("1000"), JPY, EUR)).isEqualByComparingTo("6");
     }

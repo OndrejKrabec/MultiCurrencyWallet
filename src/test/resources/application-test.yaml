@@ -6,6 +6,4 @@ wallet:
     enabled: false
   cnb:
     base-url: http://localhost:1
-    connect-timeout: 200ms
-    read-timeout: 300ms
     retry-delay: 10ms

@@ -9,7 +9,7 @@ decision changes.
 
 ## Stack
 - Java 25, Spring Boot 4.1, Maven wrapper (`./mvnw`), springdoc-openapi.
-- Tests: JUnit, AssertJ, MockMvc, WireMock (standalone) for the CNB API.
+- Tests: JUnit, AssertJ, Mockito, MockMvc, WireMock (standalone) for the CNB API.
 - Do not add dependencies without asking.
 
 ## Rules
@@ -34,7 +34,7 @@ decision changes.
 - Static analysis is part of the build and must stay clean (see pom.xml); fix findings, don't suppress them
   without a one-line justification next to the suppression.
 - Clean and lean: production-level code, but no speculative features or layers.
-- Follow current Java 25 / Spring Boot 4 best practices (records, sealed types, constructor injection,
+- Follow current Java 25 / Spring Boot 4 best practices (records, constructor injection,
   immutable values, configuration properties, no field injection, no static state).
 - Leave seams only where extension is realistic and cheap: an interface at a real boundary
   (e.g. the rate source, wallet storage), not around every class.
@@ -53,7 +53,8 @@ decision changes.
   `{currency, amount}`. No nested data types.
 - Booleans are primitive `boolean` (never absent) named with `is`/`has`/`can`, e.g. `hasLastRefreshFailed`.
 - Each external service: `common/<service>/` client + DTOs + mapper, `config/<Service>ClientConfig` + properties.
-- Every endpoint: `@Operation` (summary + description) and `@ApiResponse` with an example for each status.
+- Every endpoint: `@Operation` (summary + description) and an `@ApiResponse` for each status it can return
+  (examples on the request and response schemas; errors are Spring's RFC 9457 Problem Details).
 - Configuration: `application.yaml` (+ the `test` profile for the test suite); settings that vary by environment go
   into validated `@ConfigurationProperties` records, domain rules stay constants. Integration tests use
   `@ActiveProfiles("test")`.
@@ -61,3 +62,6 @@ decision changes.
 ## Workflow
 - Formatting is google-java-format (AOSP) via Spotless: run `./mvnw spotless:apply` before committing.
 - `./mvnw verify` must pass before every commit. Small commits with meaningful messages.
+- After an API change, regenerate the committed spec: `./mvnw test -Dtest=OpenApiSpecTest -Dopenapi.update=true`.
+- Keep `docs/design.md` and the README (API, decisions, tests and structure tables) in sync with the code.
+- `AI_USAGE.md` is written by the author: never edit it.

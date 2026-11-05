@@ -24,7 +24,7 @@ public record WalletTotal(Funds total, LocalDate ratesValidFor) {
      */
     public static WalletTotal of(
             Map<Currency, BigDecimal> balances, FxRateTable rates, Currency target) {
-        rates.getRate(target);
+        rates.validateSupported(target);
         BigDecimal exact =
                 balances.entrySet().stream()
                         // a zero balance needs no rate (e.g. a currency CNB no longer quotes)

@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -28,15 +30,16 @@ public class CnbClient {
     }
 
     /**
-     * The fixing valid for {@code date}. A failed call is retried a few times with a growing pause
-     * (by default 2, 4, 8 and 16 s), so a short outage, e.g. at startup, doesn't leave the app
-     * without rates until the next scheduled refresh.
+     * The fixing valid for {@code date}. A call that fails on the network or with a 5xx is retried
+     * a few times with a growing pause (by default 2, 4, 8 and 16 s), so a short outage, e.g. at
+     * startup, doesn't leave the app without rates until the next scheduled refresh. A 4xx or an
+     * unreadable body would fail again, so it isn't retried.
      *
      * @throws RestClientException if CNB cannot be reached or answers with an error, also after the
      *     retries
      */
     @Retryable(
-            includes = RestClientException.class,
+            includes = {ResourceAccessException.class, HttpServerErrorException.class},
             maxRetries = 4,
             delayString = "${wallet.cnb.retry-delay}",
             multiplier = 2)

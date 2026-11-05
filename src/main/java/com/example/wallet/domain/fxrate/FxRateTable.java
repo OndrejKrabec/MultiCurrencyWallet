@@ -35,14 +35,19 @@ public record FxRateTable(Currency base, LocalDate validFor, Map<Currency, FxRat
                 : Optional.ofNullable(rates.get(currency));
     }
 
-    public boolean hasRate(Currency currency) {
-        return findRate(currency).isPresent();
+    /**
+     * Guards that {@code currency} can be valued with this table.
+     *
+     * @throws UnsupportedCurrencyException if this table has no rate for it
+     */
+    public void validateSupported(Currency currency) {
+        getRate(currency);
     }
 
     /**
      * The exact (unrounded) value of {@code amount} of {@code from} in {@code to}.
      *
-     * @throws UnsupportedCurrencyException if either currency is not in this table
+     * @throws UnsupportedCurrencyException if the currencies differ and either is not in this table
      */
     public BigDecimal convert(BigDecimal amount, Currency from, Currency to) {
         if (from.equals(to)) {

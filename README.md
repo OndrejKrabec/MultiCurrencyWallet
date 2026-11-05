@@ -27,7 +27,7 @@ The app listens on <http://localhost:8080>. The API reference (Swagger UI) is at
 <http://localhost:8080/swagger-ui.html>. The OpenAPI description is served at `/v3/api-docs` and
 committed as [`docs/openapi.yaml`](docs/openapi.yaml).
 
-To build and run all checks and tests (no network needed):
+To build and run all checks and tests (no CNB access needed):
 
 ```bash
 ./mvnw verify
@@ -82,14 +82,14 @@ The assignment's illustrative rates give exactly 12.80 USD and 11.02 EUR. Both a
 published. On weekends, holidays and before the ~14:30 publication, the latest fixing is an earlier
 day's.
 
-**How the client is told:** every response based on rates includes `ratesValidFor`, the date of the
-fixing used. An older date on a Sunday is correct, not an error, so the API has no "stale" flag.
+**How the client is told:** every total, and `GET /exchange-rates`, includes `ratesValidFor`, the
+date of the fixing used. An older date on a Sunday is correct, not an error, so the API has no "stale" flag.
 
 **"Today"** is the Prague date from an injected `Clock`, not the server's time zone.
 
 **No holiday calendar, on purpose.** The refresh (decision 3) tells working days from weekends, but not
 public holidays. On a holiday CNB keeps returning the previous fixing, which costs one cheap call every
-10 minutes that afternoon (about 13 afternoons a year). A holiday library (e.g. Jollyday, which
+10 minutes that afternoon (up to 13 afternoons a year, fewer when a holiday falls on a weekend). A holiday library (e.g. Jollyday, which
 supports CZ) would remove those calls, but it isn't worth a dependency.
 
 ### 2. Rate units
@@ -124,12 +124,14 @@ it would leave no rates after a restart outside it.
 
 **When CNB can't be reached:**
 
-- A failed call is retried within the same refresh, four times after 2, 4, 8 and 16 s (Spring's
-  `@Retryable`). A short outage, e.g. while the app starts, then costs seconds, not 10 minutes.
+- A call that fails on the network or with a 5xx is retried within the same refresh, four times after
+  2, 4, 8 and 16 s (Spring's `@Retryable`). A short outage, e.g. while the app starts, then costs seconds, not 10 minutes.
 - A refresh that still fails keeps the last good fixing, and clients see its date in `ratesValidFor`.
-- A failed refresh is an operational concern, not an API one. It shows up in `/actuator/health` (the
-  `cnb` component is `UNKNOWN`, with `hasLastRefreshFailed`) and as a warning in the log.
-- If no rates have been loaded since startup, deposits and totals return **503**.
+- A failed refresh is an operational concern, not an API one. It shows up as a warning in the log and
+  in `/actuator/health`: the `cnb` component is `UNKNOWN`, with the last fixing's date and
+  `hasLastRefreshFailed: true`, or with `rates: not loaded yet` if nothing has been loaded.
+- If no rates have been loaded since startup, deposits, totals and `GET /exchange-rates` return
+  **503**.
 - Withdrawals and `GET /wallet` never need rates and keep working.
 - CNB calls have a connect timeout of 2 s and a read timeout of 3 s. CNB usually answers in about 50 ms,
   and without timeouts a hung connection would block the refresh forever.
@@ -188,7 +190,7 @@ most of the work. Each status means one thing, so a client branches on the statu
 | 404 / 405 / 406 / 415 | Unknown path, wrong method, or a non-JSON `Accept` or `Content-Type` (Spring's defaults) |
 | 409 | **Insufficient funds**: a withdrawal larger than the balance of that currency, including a currency the wallet doesn't hold |
 | 422 | **Unknown currency**: a real currency that can't be valued, because CNB doesn't quote it (e.g. `KES`) or because it is a pseudo-currency (e.g. `XDR`) |
-| 503 | A deposit or total needs rates, but none have been loaded yet |
+| 503 | A deposit, a total or `GET /exchange-rates` needs rates, but none have been loaded yet |
 | 500 | Anything unexpected. The body says only "Unexpected error", and the details are logged. |
 
 ```json
@@ -214,8 +216,9 @@ re-mapping every one of Spring's own errors.
 ### 7. CZK
 
 **CZK is the base currency.** CNB quotes every rate against CZK, and its response doesn't list CZK
-itself. CZK is always supported, with an implicit rate of 1, and can be deposited, withdrawn and used as
-a total currency like any other.
+itself. CZK is in every rate table with an implicit rate of 1, and can be deposited, withdrawn and used
+as a total currency like any other. Like every currency, it needs a loaded rate table: with no rates
+since startup, CZK deposits and totals are 503 too, while withdrawals still work.
 
 **The domain doesn't hard-wire CZK.** An `FxRateTable` has a `base` currency supplied by the rate
 provider, and only `CnbMapper` sets it to CZK.
@@ -250,8 +253,8 @@ touching the wallet.
 ## What was skipped or kept small
 
 - **Optional extras:**
-  - **AI agents:** no MCP server. The OpenAPI description has an example for every status and is
-    complete enough for an agent; an MCP server would be a thin wrapper around `WalletService`.
+  - **AI agents:** no MCP server. The OpenAPI description documents every operation, field and
+    status, with examples of the requests and responses, which is enough for an agent; an MCP server would be a thin wrapper around `WalletService`.
   - **Containerization:** done. A two-stage Docker image on Temurin 25, running as an unprivileged
     user.
   - **Observability:** a health endpoint with the CNB state. No structured logging is configured;
@@ -286,7 +289,7 @@ touching the wallet.
 Packages are by feature, with shared code in `common` and Spring wiring in `config`:
 
 ```
-config/              ClockConfig, SchedulingConfig, SwaggerConfig, CnbClientConfig + CnbProperties
+config/              ClockConfig, SchedulingConfig, SwaggerConfig + ApiDocsProperties, CnbClientConfig + CnbProperties
 common/
   money/             Funds: an exact amount in one currency
   exception/         business exceptions, ApiExceptionHandler
@@ -312,7 +315,7 @@ domain/
 | `CnbMapperTest` | The mapping from CNB's response to a rate table |
 | `CnbFxRateProviderTest` | When CNB is called: startup, 14:29 vs 14:30, weekends, retry after a failure |
 | `CnbHealthIndicatorTest` | The `cnb` health component |
-| `WalletControllerTest`, `ExchangeRatesControllerTest`, `ApiErrorsTest` | The JSON contract and every error case |
+| `WalletControllerTest`, `ExchangeRatesControllerTest`, `ApiErrorsTest` | The JSON contract and the error responses |
 | `WalletEndToEndTest` | The whole app over HTTP, against a fake CNB with a pinned clock, including a retried CNB failure |
 | `SchedulingConfigTest` | The refresh is scheduled |
 | `OpenApiSpecTest` | Fails if `docs/openapi.yaml` is out of date |
@@ -350,9 +353,10 @@ startup (`@ConfigurationProperties` with `@Validated`).
 | `wallet.cnb.connect-timeout`, `wallet.cnb.read-timeout` | `2s`, `3s` | CNB HTTP timeouts |
 | `wallet.cnb.retry-delay` | `2s` | The pause before the first retry of a failed CNB call; it doubles with each of the 4 retries |
 | `wallet.cnb.refresh-interval` | `10m` | How often the refresh checks whether a newer fixing can exist |
-| `wallet.api-docs.server-url` | `http://localhost:8080` | The server shown in Swagger UI and the OpenAPI description |
+| `wallet.api-docs.server-url`, `wallet.api-docs.server-description` | `http://localhost:8080`, `Local (…)` | The server shown in Swagger UI and the OpenAPI description |
+| `wallet.scheduling.enabled` | `true` | Whether the CNB refresh runs in the background; the test profile switches it off |
 
 Domain rules are constants in the code, not settings: the Prague time zone, the 14:30 publication
 time and the ISO minor units.
 
-Tests run with the `test` profile, which points the CNB URL nowhere, so no test can call the real CNB.
+The Spring Boot tests run with the `test` profile, which points the CNB URL nowhere, so no test can call the real CNB.

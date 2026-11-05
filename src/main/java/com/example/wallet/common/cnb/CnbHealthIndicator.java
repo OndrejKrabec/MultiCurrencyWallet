@@ -21,11 +21,12 @@ class CnbHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         return provider.findCurrentRates()
-                .map(rates ->
-                        (provider.hasLastRefreshFailed() ? Health.unknown() : Health.up())
-                                .withDetail("ratesValidFor", rates.validFor().toString())
-                                .withDetail(
-                                        "hasLastRefreshFailed", provider.hasLastRefreshFailed()))
+                .map(rates -> {
+                    boolean hasLastRefreshFailed = provider.hasLastRefreshFailed();
+                    return (hasLastRefreshFailed ? Health.unknown() : Health.up())
+                            .withDetail("ratesValidFor", rates.validFor().toString())
+                            .withDetail("hasLastRefreshFailed", hasLastRefreshFailed);
+                })
                 .orElseGet(() -> Health.unknown().withDetail("rates", "not loaded yet"))
                 .build();
     }

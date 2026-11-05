@@ -156,6 +156,8 @@ class WalletEndToEndTest {
                 get(urlPathEqualTo("/cnbapi/exrates/daily"))
                         .willReturn(aResponse().withStatus(500)));
         refreshRates();
+        // the first call and its 4 retries
+        cnb.verify(5, getRequestedFor(urlPathEqualTo("/cnbapi/exrates/daily")));
 
         assertThat(httpGet("/wallet").status()).isEqualTo(200);
         for (Response response :
